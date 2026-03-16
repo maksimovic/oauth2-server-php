@@ -297,11 +297,16 @@ class Bootstrap
 
     private function createPostgresDb()
     {
-        if (!shell_exec('PGPASSWORD=postgres psql postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname=\'postgres\'" -h localhost -U postgres')) {
-            shell_exec('PGPASSWORD=postgres createuser -s -r postgres -h localhost -U postgres');
+        try {
+            $pdo = new \PDO('pgsql:host=localhost', 'postgres', 'postgres');
+            $pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+            $exists = $pdo->query("SELECT 1 FROM pg_database WHERE datname = 'oauth2_server_php'")->fetchColumn();
+            if (!$exists) {
+                $pdo->exec('CREATE DATABASE oauth2_server_php');
+            }
+        } catch (\PDOException $e) {
+            // connection failed — will be caught later in getPostgresPdo
         }
-
-        shell_exec('PGPASSWORD=postgres createdb -O postgres oauth2_server_php -h localhost -U postgres');
     }
 
     private function populatePostgresDb(\PDO $pdo)
@@ -311,8 +316,14 @@ class Bootstrap
 
     private function removePostgresDb()
     {
-        if (trim(shell_exec('PGPASSWORD=postgres psql -l -h localhost -U postgres | grep oauth2_server_php | wc -l') ?? '')) {
-            shell_exec('PGPASSWORD=postgres dropdb oauth2_server_php -h localhost -U postgres');
+        try {
+            $pdo = new \PDO('pgsql:host=localhost', 'postgres', 'postgres');
+            $pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+            // terminate existing connections before dropping
+            $pdo->exec("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'oauth2_server_php' AND pid <> pg_backend_pid()");
+            $pdo->exec('DROP DATABASE IF EXISTS oauth2_server_php');
+        } catch (\PDOException $e) {
+            // connection failed — will be caught later
         }
     }
 
