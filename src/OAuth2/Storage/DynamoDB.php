@@ -480,7 +480,7 @@ class DynamoDB implements
     /* PublicKeyInterface */
     public function getPublicKey($client_id = '0')
     {
-
+        $client_id = $client_id ?? '0';
         $result = $this->client->getItem(array(
             "TableName"=> $this->config['public_key_table'],
             "Key" => array('client_id'   => array('S' => $client_id))
@@ -496,6 +496,7 @@ class DynamoDB implements
 
     public function getPrivateKey($client_id = '0')
     {
+        $client_id = $client_id ?? '0';
         $result = $this->client->getItem(array(
             "TableName"=> $this->config['public_key_table'],
             "Key" => array('client_id'   => array('S' => $client_id))
@@ -510,6 +511,7 @@ class DynamoDB implements
 
     public function getEncryptionAlgorithm($client_id = null)
     {
+        $client_id = $client_id ?? '0';
         $result = $this->client->getItem(array(
             "TableName"=> $this->config['public_key_table'],
             "Key" => array('client_id'   => array('S' => $client_id))
