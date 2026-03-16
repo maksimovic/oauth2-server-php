@@ -164,7 +164,7 @@ class Bootstrap
         if (!$this->couchbase) {
             if ($this->getEnvVar('SKIP_COUCHBASE_TESTS')) {
                 $this->couchbase = new NullStorage('Couchbase', 'Skipping Couchbase tests');
-            } elseif (!class_exists(\Couchbase\Cluster::class)) {
+            } elseif (!extension_loaded('couchbase') || !class_exists(\Couchbase\Cluster::class)) {
                 $this->couchbase = new NullStorage('Couchbase', 'Missing Couchbase PHP SDK 4.x. Please install ext-couchbase ^4.0');
             } else {
                 try {
