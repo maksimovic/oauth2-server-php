@@ -10,8 +10,14 @@ class JwtAccessTokenTest extends BaseTest
     #[DataProvider('provideStorage')]
     public function testSetAccessToken($storage)
     {
-        if (!$storage instanceof PublicKey) {
-            $this->markTestSkipped('Incompatible storage: PublicKey required');
+        if ($storage instanceof NullStorage) {
+            $this->markTestSkipped("Skipped Storage: {$storage}");
+
+            return;
+        }
+
+        if (!$storage instanceof PublicKeyInterface) {
+            $this->markTestSkipped('Incompatible storage: PublicKeyInterface required');
 
             return;
         }
