@@ -21,16 +21,16 @@
     "require-dev": {
         "phpunit/phpunit": "^10.5",
         "aws/aws-sdk-php": "^3.0",
-        "firebase/php-jwt": "^6.4 || ^7.0",
+        "firebase/php-jwt": "^7.0",
         "predis/predis": "^2.0",
         "mroosz/php-cassandra": "^1.2",
-        "yoast/phpunit-polyfills": "^2.0||^3.0"
+        "phpstan/phpstan": "^2.1"
     },
     "suggest": {
         "predis/predis": "Required to use Redis storage",
         "mroosz/php-cassandra": "^1.2 is required to use Cassandra storage",
         "aws/aws-sdk-php": "^3.0 is required to use DynamoDB storage",
-        "firebase/php-jwt": "^6.4 || ^7.0 is required to use JWT features",
+        "firebase/php-jwt": "^7.0 is required to use JWT features",
         "mongodb/mongodb": "^1.1 is required to use MongoDB storage",
         "ext-couchbase": "^4.0 is required to use Couchbase storage"
     }

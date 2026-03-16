@@ -43,7 +43,7 @@ jobs:
         image: amazon/dynamodb-local
         ports:
           - 8000:8000
-        options: --health-cmd="wget -q -O /dev/null http://localhost:8000 || exit 1" --health-interval=10s --health-timeout=5s --health-retries=5
+        options: --health-cmd="bash -c 'echo > /dev/tcp/localhost/8000'" --health-interval=10s --health-timeout=5s --health-retries=5
     strategy:
       matrix:
         php: [ 8.1, 8.2, 8.3, 8.4, 8.5 ]
