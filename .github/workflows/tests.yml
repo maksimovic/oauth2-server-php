@@ -50,7 +50,7 @@ jobs:
         run: |
           docker run -d --name cassandra -p 9042:9042 cassandra:4
           docker run -d --name dynamodb -p 8000:8000 amazon/dynamodb-local
-          docker run -d --name couchbase -p 8091-8096:8091-8096 -p 11210:11210 couchbase:community-7.6.5
+          docker run -d --name couchbase -p 8091-8096:8091-8096 -p 11210:11210 couchbase/server:community-7.6.2
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
