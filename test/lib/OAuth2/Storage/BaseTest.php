@@ -12,7 +12,6 @@ abstract class BaseTest extends TestCase
         $sqlite = Bootstrap::getInstance()->getSqlitePdo();
         $mysql = Bootstrap::getInstance()->getMysqlPdo();
         $postgres = Bootstrap::getInstance()->getPostgresPdo();
-        $mongo = Bootstrap::getInstance()->getMongo();
         $mongoDb = Bootstrap::getInstance()->getMongoDB();
         $redis = Bootstrap::getInstance()->getRedisStorage();
         $cassandra = Bootstrap::getInstance()->getCassandraStorage();
@@ -27,7 +26,6 @@ abstract class BaseTest extends TestCase
             array($sqlite),
             array($mysql),
             array($postgres),
-            array($mongo),
             array($mongoDb),
             array($redis),
             array($cassandra),

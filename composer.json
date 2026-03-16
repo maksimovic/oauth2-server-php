@@ -31,6 +31,7 @@
         "mroosz/php-cassandra": "^1.2 is required to use Cassandra storage",
         "aws/aws-sdk-php": "^3.0 is required to use DynamoDB storage",
         "firebase/php-jwt": "^6.4 || ^7.0 is required to use JWT features",
-        "mongodb/mongodb": "^1.1 is required to use MongoDB storage"
+        "mongodb/mongodb": "^1.1 is required to use MongoDB storage",
+        "ext-couchbase": "^4.0 is required to use Couchbase storage"
     }
 }
