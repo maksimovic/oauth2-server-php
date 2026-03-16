@@ -79,7 +79,11 @@ class Redis implements AuthorizationCodeInterface,
 
         // check that the key was set properly
         // if this fails, an exception will usually thrown, so this step isn't strictly necessary
-        return is_bool($ret) ? $ret : $ret->getPayload() == 'OK';
+        if (is_bool($ret)) {
+            return $ret;
+        }
+
+        return (string) $ret === 'OK';
     }
 
     protected function expireValue($key)

@@ -2,9 +2,11 @@
 
 namespace OAuth2\Storage;
 
+use PHPUnit\Framework\Attributes\DataProvider;
+
 class ClientTest extends BaseTest
 {
-    /** @dataProvider provideStorage */
+    #[DataProvider('provideStorage')]
     public function testGetClientDetails(ClientInterface $storage)
     {
         if ($storage instanceof NullStorage) {
@@ -25,7 +27,7 @@ class ClientTest extends BaseTest
         $this->assertArrayHasKey('redirect_uri', $details);
     }
 
-    /** @dataProvider provideStorage */
+    #[DataProvider('provideStorage')]
     public function testCheckRestrictedGrantType(ClientInterface $storage)
     {
         if ($storage instanceof NullStorage) {
@@ -43,7 +45,7 @@ class ClientTest extends BaseTest
         $this->assertTrue($pass);
     }
 
-    /** @dataProvider provideStorage */
+    #[DataProvider('provideStorage')]
     public function testGetAccessToken(ClientInterface $storage)
     {
         if ($storage instanceof NullStorage) {
@@ -61,7 +63,7 @@ class ClientTest extends BaseTest
         $this->assertNotNull($details);
     }
 
-    /** @dataProvider provideStorage */
+    #[DataProvider('provideStorage')]
     public function testIsPublicClient(ClientInterface $storage)
     {
         if ($storage instanceof NullStorage) {
@@ -84,7 +86,7 @@ class ClientTest extends BaseTest
         $this->assertFalse($storage->isPublicClient($confidentialClientId));
     }
 
-    /** @dataProvider provideStorage */
+    #[DataProvider('provideStorage')]
     public function testSaveClient(ClientInterface $storage)
     {
         if ($storage instanceof NullStorage) {

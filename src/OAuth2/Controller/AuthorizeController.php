@@ -257,7 +257,7 @@ class AuthorizeController implements AuthorizeControllerInterface
         $response_type = $request->query('response_type', $request->request('response_type'));
 
         // for multiple-valued response types - make them alphabetical
-        if (false !== strpos($response_type, ' ')) {
+        if (false !== strpos((string) $response_type, ' ')) {
             $types = explode(' ', $response_type);
             sort($types);
             $response_type = ltrim(implode(' ', $types));

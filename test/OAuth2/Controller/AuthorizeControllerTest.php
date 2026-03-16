@@ -478,6 +478,7 @@ class AuthorizeControllerTest extends TestCase
     {
         $storage = Bootstrap::getInstance()->getMemoryStorage();
         $controller = new AuthorizeController($storage);
+        $this->assertInstanceOf('OAuth2\Controller\AuthorizeController', $controller);
     }
 
     private function getTestServer($config = array())

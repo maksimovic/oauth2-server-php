@@ -4,10 +4,11 @@ namespace OAuth2\OpenID\Storage;
 
 use OAuth2\Storage\BaseTest;
 use OAuth2\Storage\NullStorage;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class AuthorizationCodeTest extends BaseTest
 {
-    /** @dataProvider provideStorage */
+    #[DataProvider('provideStorage')]
     public function testCreateAuthorizationCode($storage)
     {
         if ($storage instanceof NullStorage) {
@@ -66,7 +67,7 @@ class AuthorizationCodeTest extends BaseTest
         $this->assertEquals($code['id_token'], $new_id_token);
     }
 
-        /** @dataProvider provideStorage */
+    #[DataProvider('provideStorage')]
     public function testRemoveIdTokenFromAuthorizationCode($storage)
     {
         // add new code

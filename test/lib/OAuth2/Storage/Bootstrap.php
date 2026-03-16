@@ -243,60 +243,40 @@ class Bootstrap
     public function getCassandraStorage()
     {
         if (!$this->cassandra) {
-            if (class_exists('phpcassa\ColumnFamily')) {
-                $cassandra = new \phpcassa\Connection\ConnectionPool('oauth2_test', array('127.0.0.1:9160'));
-                if ($this->testCassandraConnection($cassandra)) {
-                    $this->removeCassandraDb();
-                    $this->cassandra = new Cassandra($cassandra);
-                    $this->createCassandraDb($this->cassandra);
-                } else {
-                    $this->cassandra = new NullStorage('Cassandra', 'Unable to connect to cassandra server on "127.0.0.1:9160"');
-                }
-            } else {
-                $this->cassandra = new NullStorage('Cassandra', 'Missing cassandra library. Please run "composer.phar require thobbs/phpcassa:dev-master"');
+            if (!class_exists('Cassandra\Connection')) {
+                $this->cassandra = new NullStorage('Cassandra', 'Missing cassandra library. Please run "composer require mroosz/php-cassandra"');
+
+                return $this->cassandra;
+            }
+
+            try {
+                $conn = new \Cassandra\Connection([
+                    new \Cassandra\Connection\StreamNodeConfig(
+                        host: '127.0.0.1',
+                        port: 9042,
+                    ),
+                ]);
+                $conn->connect();
+
+                // recreate keyspace
+                $conn->query("DROP KEYSPACE IF EXISTS oauth2_test");
+                $conn->query("CREATE KEYSPACE oauth2_test WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1}");
+                $conn->query("CREATE TABLE oauth2_test.oauth_data (key text PRIMARY KEY, value text)");
+
+                $conn->setKeyspace('oauth2_test');
+
+                $this->cassandra = new Cassandra($conn);
+                $this->createCassandraDb($this->cassandra, $conn);
+            } catch (\Exception $e) {
+                $this->cassandra = new NullStorage('Cassandra', $e->getMessage());
             }
         }
 
         return $this->cassandra;
     }
 
-    private function testCassandraConnection(\phpcassa\Connection\ConnectionPool $cassandra)
+    private function createCassandraDb(Cassandra $storage, \Cassandra\Connection $conn)
     {
-        try {
-            new \phpcassa\SystemManager('localhost:9160');
-        } catch (\Exception $e) {
-            return false;
-        }
-
-        return true;
-    }
-
-    private function removeCassandraDb()
-    {
-        $sys = new \phpcassa\SystemManager('localhost:9160');
-
-        try {
-            $sys->drop_keyspace('oauth2_test');
-        } catch (\cassandra\InvalidRequestException $e) {
-
-        }
-    }
-
-    private function createCassandraDb(Cassandra $storage)
-    {
-        // create the cassandra keyspace and column family
-        $sys = new \phpcassa\SystemManager('localhost:9160');
-
-        $sys->create_keyspace('oauth2_test', array(
-            "strategy_class" => \phpcassa\Schema\StrategyClass::SIMPLE_STRATEGY,
-            "strategy_options" => array('replication_factor' => '1')
-        ));
-
-        $sys->create_column_family('oauth2_test', 'auth');
-        $cassandra = new \phpcassa\Connection\ConnectionPool('oauth2_test', array('127.0.0.1:9160'));
-        $cf = new \phpcassa\ColumnFamily($cassandra, 'auth');
-
-        // populate the data
         $storage->setClientDetails("oauth_test_client", "testpass", "http://example.com", 'implicit password');
         $storage->setAccessToken("testtoken", "Some Client", '', time() + 1000);
         $storage->setAuthorizationCode("testcode", "Some Client", '', '', time() + 1000);
@@ -318,12 +298,24 @@ class Bootstrap
 
         $storage->setClientKey('oauth_test_client', $this->getTestPublicKey(), 'test_subject');
 
-        $cf->insert("oauth_public_keys:ClientID_One", array('__data' => json_encode(array("public_key" => "client_1_public", "private_key" => "client_1_private", "encryption_algorithm" => "RS256"))));
-        $cf->insert("oauth_public_keys:ClientID_Two", array('__data' => json_encode(array("public_key" => "client_2_public", "private_key" => "client_2_private", "encryption_algorithm" => "RS256"))));
-        $cf->insert("oauth_public_keys:", array('__data' => json_encode(array("public_key" => $this->getTestPublicKey(), "private_key" =>  $this->getTestPrivateKey(), "encryption_algorithm" => "RS256"))));
-
-        $cf->insert("oauth_users:testuser", array('__data' =>json_encode(array("password" => "password", "email" => "testuser@test.com", "email_verified" => true))));
-
+        // insert public keys and user directly
+        $table = 'oauth_data';
+        $conn->query("INSERT INTO $table (key, value) VALUES (?, ?)", [
+            'oauth_public_keys:ClientID_One',
+            json_encode(array("public_key" => "client_1_public", "private_key" => "client_1_private", "encryption_algorithm" => "RS256")),
+        ]);
+        $conn->query("INSERT INTO $table (key, value) VALUES (?, ?)", [
+            'oauth_public_keys:ClientID_Two',
+            json_encode(array("public_key" => "client_2_public", "private_key" => "client_2_private", "encryption_algorithm" => "RS256")),
+        ]);
+        $conn->query("INSERT INTO $table (key, value) VALUES (?, ?)", [
+            'oauth_public_keys:',
+            json_encode(array("public_key" => $this->getTestPublicKey(), "private_key" => $this->getTestPrivateKey(), "encryption_algorithm" => "RS256")),
+        ]);
+        $conn->query("INSERT INTO $table (key, value) VALUES (?, ?)", [
+            'oauth_users:testuser',
+            json_encode(array("password" => "password", "email" => "testuser@test.com", "email_verified" => true)),
+        ]);
     }
 
     private function createSqliteDb(\PDO $pdo)
@@ -352,11 +344,11 @@ class Bootstrap
 
     private function createPostgresDb()
     {
-        if (!`PGPASSWORD=postgres psql postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname='postgres'" -h localhost -U postgres`) {
-            `PGPASSWORD=postgres createuser -s -r postgres -h localhost -U postgres`;
+        if (!shell_exec('PGPASSWORD=postgres psql postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname=\'postgres\'" -h localhost -U postgres')) {
+            shell_exec('PGPASSWORD=postgres createuser -s -r postgres -h localhost -U postgres');
         }
 
-        `PGPASSWORD=postgres createdb -O postgres oauth2_server_php -h localhost -U postgres`;
+        shell_exec('PGPASSWORD=postgres createdb -O postgres oauth2_server_php -h localhost -U postgres');
     }
 
     private function populatePostgresDb(\PDO $pdo)
@@ -366,8 +358,8 @@ class Bootstrap
 
     private function removePostgresDb()
     {
-        if (trim(`PGPASSWORD=postgres psql -l -h localhost -U postgres | grep oauth2_server_php | wc -l`)) {
-            `PGPASSWORD=postgres dropdb oauth2_server_php -h localhost -U postgres`;
+        if (trim(shell_exec('PGPASSWORD=postgres psql -l -h localhost -U postgres | grep oauth2_server_php | wc -l') ?? '')) {
+            shell_exec('PGPASSWORD=postgres dropdb oauth2_server_php -h localhost -U postgres');
         }
     }
 
@@ -597,47 +589,58 @@ class Bootstrap
     public function getDynamoDbStorage()
     {
         if (!$this->dynamodb) {
-            // only run once per travis build
-            if (true == $this->getEnvVar('TRAVIS')) {
-                if (self::DYNAMODB_PHP_VERSION != $this->getEnvVar('TRAVIS_PHP_VERSION')) {
-                    $this->dynamodb = new NullStorage('DynamoDb', 'Skipping for travis.ci - only run once per build');
-
-                    return;
-                }
-            }
-            if (class_exists('\Aws\DynamoDb\DynamoDbClient')) {
-                if ($client = $this->getDynamoDbClient()) {
-                    // travis runs a unique set of tables per build, to avoid conflict
-                    $prefix = '';
-                    if ($build_id = $this->getEnvVar('TRAVIS_JOB_NUMBER')) {
-                        $prefix = sprintf('build_%s_', $build_id);
-                    } else {
-                        if (!$this->deleteDynamoDb($client, $prefix, true)) {
-                            return $this->dynamodb = new NullStorage('DynamoDb', 'Timed out while waiting for DynamoDB deletion (30 seconds)');
-                        }
-                    }
-                    $this->createDynamoDb($client, $prefix);
-                    $this->populateDynamoDb($client, $prefix);
-                    $config = array(
-                        'client_table' => $prefix.'oauth_clients',
-                        'access_token_table' => $prefix.'oauth_access_tokens',
-                        'refresh_token_table' => $prefix.'oauth_refresh_tokens',
-                        'code_table' => $prefix.'oauth_authorization_codes',
-                        'user_table' => $prefix.'oauth_users',
-                        'jwt_table'  => $prefix.'oauth_jwt',
-                        'scope_table'  => $prefix.'oauth_scopes',
-                        'public_key_table'  => $prefix.'oauth_public_keys',
-                    );
-                    $this->dynamodb = new DynamoDB($client, $config);
-                } elseif (!$this->dynamodb) {
-                    $this->dynamodb = new NullStorage('DynamoDb', 'unable to connect to DynamoDB');
-                }
-            } else {
-                $this->dynamodb = new NullStorage('DynamoDb', 'Missing DynamoDB library. Please run "composer.phar require aws/aws-sdk-php:dev-master');
+            try {
+                $this->initDynamoDbStorage();
+            } catch (\Exception $e) {
+                $this->dynamodb = new NullStorage('DynamoDb', $e->getMessage());
             }
         }
 
         return $this->dynamodb;
+    }
+
+    private function initDynamoDbStorage()
+    {
+        // only run once per travis build
+        if (true == $this->getEnvVar('TRAVIS')) {
+            if (self::DYNAMODB_PHP_VERSION != $this->getEnvVar('TRAVIS_PHP_VERSION')) {
+                $this->dynamodb = new NullStorage('DynamoDb', 'Skipping for travis.ci - only run once per build');
+
+                return;
+            }
+        }
+        if (class_exists('\Aws\DynamoDb\DynamoDbClient')) {
+            if ($client = $this->getDynamoDbClient()) {
+                // travis runs a unique set of tables per build, to avoid conflict
+                $prefix = '';
+                if ($build_id = $this->getEnvVar('TRAVIS_JOB_NUMBER')) {
+                    $prefix = sprintf('build_%s_', $build_id);
+                } else {
+                    if (!$this->deleteDynamoDb($client, $prefix, true)) {
+                        $this->dynamodb = new NullStorage('DynamoDb', 'Timed out while waiting for DynamoDB deletion (30 seconds)');
+
+                        return;
+                    }
+                }
+                $this->createDynamoDb($client, $prefix);
+                $this->populateDynamoDb($client, $prefix);
+                $config = array(
+                    'client_table' => $prefix.'oauth_clients',
+                    'access_token_table' => $prefix.'oauth_access_tokens',
+                    'refresh_token_table' => $prefix.'oauth_refresh_tokens',
+                    'code_table' => $prefix.'oauth_authorization_codes',
+                    'user_table' => $prefix.'oauth_users',
+                    'jwt_table'  => $prefix.'oauth_jwt',
+                    'scope_table'  => $prefix.'oauth_scopes',
+                    'public_key_table'  => $prefix.'oauth_public_keys',
+                );
+                $this->dynamodb = new DynamoDB($client, $config);
+            } elseif (!$this->dynamodb) {
+                $this->dynamodb = new NullStorage('DynamoDb', 'unable to connect to DynamoDB');
+            }
+        } else {
+            $this->dynamodb = new NullStorage('DynamoDb', 'Missing DynamoDB library. Please run "composer.phar require aws/aws-sdk-php:^3.0');
+        }
     }
 
     private function getDynamoDbClient()
@@ -661,9 +664,16 @@ class Bootstrap
         }
 
         // set region in AWS_REGION environment variable, defaults to "us-east-1"
-        $config['region'] = $this->getEnvVar('AWS_REGION', \Aws\Common\Enum\Region::US_EAST_1);
+        $config['region'] = $this->getEnvVar('AWS_REGION', 'us-east-1');
+        $config['version'] = 'latest';
 
-        return \Aws\DynamoDb\DynamoDbClient::factory($config);
+        try {
+            return new \Aws\DynamoDb\DynamoDbClient($config);
+        } catch (\Exception $e) {
+            $this->dynamodb = new NullStorage('DynamoDb', $e->getMessage());
+
+            return;
+        }
     }
 
     private function deleteDynamoDb(\Aws\DynamoDb\DynamoDbClient $client, $prefix = null, $waitForDeletion = false)

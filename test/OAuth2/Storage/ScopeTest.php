@@ -3,10 +3,11 @@
 namespace OAuth2\Storage;
 
 use OAuth2\Scope;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class ScopeTest extends BaseTest
 {
-    /** @dataProvider provideStorage */
+    #[DataProvider('provideStorage')]
     public function testScopeExists($storage)
     {
         if ($storage instanceof NullStorage) {
@@ -16,7 +17,8 @@ class ScopeTest extends BaseTest
         }
 
         if (!$storage instanceof ScopeInterface) {
-            // incompatible storage
+            $this->markTestSkipped('Incompatible storage: ScopeInterface required');
+
             return;
         }
 
@@ -28,7 +30,7 @@ class ScopeTest extends BaseTest
         $this->assertFalse($scopeUtil->scopeExists('supportedscope1 supportedscope2 supportedscope3 fakescope'));
     }
 
-    /** @dataProvider provideStorage */
+    #[DataProvider('provideStorage')]
     public function testGetDefaultScope($storage)
     {
         if ($storage instanceof NullStorage) {
@@ -38,7 +40,8 @@ class ScopeTest extends BaseTest
         }
 
         if (!$storage instanceof ScopeInterface) {
-            // incompatible storage
+            $this->markTestSkipped('Incompatible storage: ScopeInterface required');
+
             return;
         }
 

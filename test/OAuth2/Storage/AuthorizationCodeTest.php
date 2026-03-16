@@ -2,9 +2,11 @@
 
 namespace OAuth2\Storage;
 
+use PHPUnit\Framework\Attributes\DataProvider;
+
 class AuthorizationCodeTest extends BaseTest
 {
-    /** @dataProvider provideStorage */
+    #[DataProvider('provideStorage')]
     public function testGetAuthorizationCode(AuthorizationCodeInterface $storage)
     {
         if ($storage instanceof NullStorage) {
@@ -22,7 +24,7 @@ class AuthorizationCodeTest extends BaseTest
         $this->assertNotNull($details);
     }
 
-    /** @dataProvider provideStorage */
+    #[DataProvider('provideStorage')]
     public function testSetAuthorizationCode(AuthorizationCodeInterface $storage)
     {
         if ($storage instanceof NullStorage) {
@@ -77,7 +79,7 @@ class AuthorizationCodeTest extends BaseTest
         $this->assertTrue($success);
     }
 
-        /** @dataProvider provideStorage */
+        #[DataProvider('provideStorage')]
     public function testExpireAccessToken(AccessTokenInterface $storage)
     {
         if ($storage instanceof NullStorage) {

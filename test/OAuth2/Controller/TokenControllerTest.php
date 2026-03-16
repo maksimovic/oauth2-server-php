@@ -319,6 +319,7 @@ class TokenControllerTest extends TestCase
         $storage = Bootstrap::getInstance()->getMemoryStorage();
         $accessToken = new \OAuth2\ResponseType\AccessToken($storage);
         $controller = new TokenController($accessToken, $storage);
+        $this->assertInstanceOf('OAuth2\Controller\TokenController', $controller);
     }
 
     private function getTestServer()

@@ -2,9 +2,11 @@
 
 namespace OAuth2\Storage;
 
+use PHPUnit\Framework\Attributes\DataProvider;
+
 class UserCredentialsTest extends BaseTest
 {
-    /** @dataProvider provideStorage */
+    #[DataProvider('provideStorage')]
     public function testCheckUserCredentials(UserCredentialsInterface $storage)
     {
         if ($storage instanceof NullStorage) {

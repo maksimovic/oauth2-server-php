@@ -2,9 +2,11 @@
 
 namespace OAuth2\Storage;
 
+use PHPUnit\Framework\Attributes\DataProvider;
+
 class AccessTokenTest extends BaseTest
 {
-    /** @dataProvider provideStorage */
+    #[DataProvider('provideStorage')]
     public function testSetAccessToken(AccessTokenInterface $storage)
     {
         if ($storage instanceof NullStorage) {
@@ -55,7 +57,7 @@ class AccessTokenTest extends BaseTest
         $this->assertTrue($success);
     }
 
-    /** @dataProvider provideStorage */
+    #[DataProvider('provideStorage')]
     public function testUnsetAccessToken(AccessTokenInterface $storage)
     {
         if ($storage instanceof NullStorage || !method_exists($storage, 'unsetAccessToken')) {
@@ -82,7 +84,7 @@ class AccessTokenTest extends BaseTest
         $this->assertFalse($token);
     }
 
-    /** @dataProvider provideStorage */
+    #[DataProvider('provideStorage')]
     public function testUnsetAccessTokenReturnsFalse(AccessTokenInterface $storage)
     {
         if ($storage instanceof NullStorage || !method_exists($storage, 'unsetAccessToken')) {

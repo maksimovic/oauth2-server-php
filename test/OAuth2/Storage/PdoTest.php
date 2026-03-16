@@ -2,11 +2,8 @@
 
 namespace OAuth2\Storage;
 
-use Yoast\PHPUnitPolyfills\Polyfills\ExpectPHPException;
-
 class PdoTest extends BaseTest
 {
-    use ExpectPHPException;
 
     public function testCreatePdoStorageUsingPdoClass()
     {
@@ -36,7 +33,7 @@ class PdoTest extends BaseTest
 
     public function testCreatePdoStorageWithoutDSNThrowsException()
     {
-        $this->expectErrorMessage('dsn');
+        $this->expectExceptionMessage('dsn');
         $config = array('username' => 'brent', 'password' => 'brentisaballer');
         $storage = new Pdo($config);
     }

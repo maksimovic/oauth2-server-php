@@ -17,13 +17,14 @@ jobs:
         image: mongo
         ports:
           - 27017:27017
-      myriadb:
+        options: --health-cmd="mongosh --eval 'db.runCommand(\"ping\").ok'" --health-interval=10s --health-timeout=5s --health-retries=5
+      mariadb:
         image: mariadb
         env:
           MYSQL_ROOT_PASSWORD: root
         ports:
-          - 3808:3808
           - 3306:3306
+        options: --health-cmd="healthcheck.sh --connect --innodb_initialized" --health-interval=10s --health-timeout=5s --health-retries=5
       postgres:
         image: postgres
         env:
@@ -33,41 +34,37 @@ jobs:
         ports:
           - 5432:5432
         options: --health-cmd="pg_isready -h localhost" --health-interval=10s --health-timeout=5s --health-retries=5
+      cassandra:
+        image: cassandra:4
+        ports:
+          - 9042:9042
+        options: --health-cmd="cqlsh -e 'describe cluster'" --health-interval=15s --health-timeout=10s --health-retries=10
     strategy:
       matrix:
-        php: [ 7.2, 7.3, 7.4, "8.0", 8.1, 8.2 ]
+        php: [ 8.1, 8.2, 8.3, 8.4, 8.5 ]
     name: "PHP ${{ matrix.php }} Unit Test"
     steps:
-      - uses: actions/checkout@v2
-      - uses: codecov/codecov-action@v1
+      - uses: actions/checkout@v5
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
-          extensions: mongodb, mbstring, intl, redis, pdo_mysql
+          extensions: mongodb, mbstring, intl, redis, pdo_mysql, pdo_pgsql
       - name: Install composer dependencies
-        uses: nick-invision/retry@v1
-        with:
-          timeout_minutes: 10
-          max_attempts: 3
-          command: composer install
+        run: composer install
       - name: Run PHPUnit
-        run: vendor/bin/phpunit -v
+        run: vendor/bin/phpunit
   phpstan:
     name: "PHPStan"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v5
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: 8.1
       - name: Install composer dependencies
-        uses: nick-invision/retry@v1
-        with:
-          timeout_minutes: 10
-          max_attempts: 3
-          command: composer install
+        run: composer install
       - name: Run PHPStan
         run: |
           composer require phpstan/phpstan
