@@ -8,17 +8,14 @@ RUN apk add --no-cache --virtual .build-deps \
         openssl-dev \
         zlib-dev \
         libpq-dev \
-        icu-dev \
     && apk add --no-cache \
         git \
         unzip \
         libpq \
         libstdc++ \
-        icu-libs \
     && docker-php-ext-install -j$(nproc) \
         pdo_mysql \
         pdo_pgsql \
-        intl \
     && pecl install mongodb redis couchbase \
     && docker-php-ext-enable mongodb redis couchbase \
     && apk del .build-deps \
