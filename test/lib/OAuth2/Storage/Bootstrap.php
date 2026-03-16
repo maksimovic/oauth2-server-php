@@ -65,7 +65,8 @@ class Bootstrap
     public function getPostgresDriver()
     {
         try {
-            $pdo = new \PDO('pgsql:host=localhost;dbname=oauth2_server_php', 'postgres', 'postgres');
+            $pgHost = $this->getEnvVar('POSTGRES_HOST', 'localhost');
+            $pdo = new \PDO("pgsql:host={$pgHost};dbname=oauth2_server_php", 'postgres', 'postgres');
 
             return $pdo;
         } catch (\PDOException $e) {
@@ -82,7 +83,8 @@ class Bootstrap
     {
         if (!$this->redis) {
             if (class_exists('Predis\Client')) {
-                $redis = new \Predis\Client();
+                $redisHost = $this->getEnvVar('REDIS_HOST', '127.0.0.1');
+                $redis = new \Predis\Client(['host' => $redisHost]);
                 if ($this->testRedisConnection($redis)) {
                     $redis->flushdb();
                     $this->redis = new Redis($redis);
@@ -115,9 +117,10 @@ class Bootstrap
         if (!$this->mysql) {
             $pdo = null;
             try {
-                $pdo = new \PDO('mysql:host=127.0.0.1;', 'root', 'root');
+                $mysqlHost = $this->getEnvVar('MYSQL_HOST', '127.0.0.1');
+                $pdo = new \PDO("mysql:host={$mysqlHost};", 'root', 'root');
             } catch (\PDOException $e) {
-                $this->mysql = new NullStorage('MySQL', 'Unable to connect to MySQL on root@127.0.0.1');
+                $this->mysql = new NullStorage('MySQL', "Unable to connect to MySQL on root@{$mysqlHost}");
             }
 
             if ($pdo) {
@@ -136,7 +139,8 @@ class Bootstrap
     {
         if (!$this->mongoDb) {
             if (extension_loaded('mongodb') && class_exists('MongoDB\Client')) {
-                $mongoDb = new \MongoDB\Client('mongodb://localhost:27017');
+                $mongoHost = $this->getEnvVar('MONGODB_HOST', 'localhost');
+                $mongoDb = new \MongoDB\Client("mongodb://{$mongoHost}:27017");
                 if ($this->testMongoDBConnection($mongoDb)) {
                     $db = $mongoDb->oauth2_server_php;
                     $this->removeMongoDb($db);
@@ -203,9 +207,10 @@ class Bootstrap
             }
 
             try {
+                $cassandraHost = $this->getEnvVar('CASSANDRA_HOST', '127.0.0.1');
                 $conn = new \Cassandra\Connection([
                     new \Cassandra\Connection\StreamNodeConfig(
-                        host: '127.0.0.1',
+                        host: $cassandraHost,
                         port: 9042,
                     ),
                 ]);
@@ -298,7 +303,8 @@ class Bootstrap
     private function createPostgresDb()
     {
         try {
-            $pdo = new \PDO('pgsql:host=localhost', 'postgres', 'postgres');
+            $pgHost = $this->getEnvVar('POSTGRES_HOST', 'localhost');
+            $pdo = new \PDO("pgsql:host={$pgHost}", 'postgres', 'postgres');
             $pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
             $exists = $pdo->query("SELECT 1 FROM pg_database WHERE datname = 'oauth2_server_php'")->fetchColumn();
             if (!$exists) {
@@ -317,7 +323,8 @@ class Bootstrap
     private function removePostgresDb()
     {
         try {
-            $pdo = new \PDO('pgsql:host=localhost', 'postgres', 'postgres');
+            $pgHost = $this->getEnvVar('POSTGRES_HOST', 'localhost');
+            $pdo = new \PDO("pgsql:host={$pgHost}", 'postgres', 'postgres');
             $pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
             // terminate existing connections before dropping
             $pdo->exec("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'oauth2_server_php' AND pid <> pg_backend_pid()");

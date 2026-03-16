@@ -7,6 +7,75 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/${{ github.repository_owner }}/oauth2-php-ci:${{ matrix.php }}
+    services:
+      redis:
+        image: redis
+        options: --health-cmd="redis-cli ping" --health-interval=10s --health-timeout=5s --health-retries=3
+      mongodb:
+        image: mongo
+        options: --health-cmd="mongosh --eval 'db.runCommand(\"ping\").ok'" --health-interval=10s --health-timeout=5s --health-retries=5
+      mariadb:
+        image: mariadb
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        options: --health-cmd="healthcheck.sh --connect --innodb_initialized" --health-interval=10s --health-timeout=5s --health-retries=5
+      postgres:
+        image: postgres
+        env:
+          POSTGRES_DB: oauth2_server_php
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        options: --health-cmd="pg_isready -h localhost" --health-interval=10s --health-timeout=5s --health-retries=5
+      cassandra:
+        image: cassandra:4
+        options: --health-cmd="cqlsh -e 'describe cluster'" --health-interval=15s --health-timeout=10s --health-retries=10
+      dynamodb:
+        image: amazon/dynamodb-local
+      couchbase:
+        image: couchbase/server:community-7.6.2
+    strategy:
+      matrix:
+        php: [ '8.1', '8.2', '8.3', '8.4' ]
+    name: "PHP ${{ matrix.php }} Unit Test"
+    env:
+      MYSQL_HOST: mariadb
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
+      MONGODB_HOST: mongodb
+      CASSANDRA_HOST: cassandra
+      DYNAMODB_ENDPOINT: http://dynamodb:8000
+      CB_CONNECTION_STRING: couchbase://couchbase
+      CB_USERNAME: Administrator
+      CB_PASSWORD: password
+      CB_BUCKET: oauth2test
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install composer dependencies
+        run: composer install --no-interaction
+      - name: Setup Couchbase
+        run: |
+          echo "Waiting for Couchbase..."
+          timeout 90 sh -c 'until wget -qO- http://couchbase:8091/ui/index.html > /dev/null 2>&1; do sleep 2; done'
+          echo "Couchbase responding"
+
+          wget -qO- --post-data 'clusterName=ci&services=kv&memoryQuota=256&afamily=ipv4&afamilyOnly=false&nodeEncryption=off&username=Administrator&password=password&port=SAME&sendStats=false' \
+            http://couchbase:8091/clusterInit
+          echo "Couchbase cluster initialized"
+
+          wget -qO- --post-data 'name=oauth2test&ramQuota=128&bucketType=couchbase' \
+            --header="Authorization: Basic $(echo -n Administrator:password | base64)" \
+            http://couchbase:8091/pools/default/buckets
+          echo "Couchbase bucket created"
+
+          timeout 30 sh -c 'until wget -qO- --header="Authorization: Basic $(echo -n Administrator:password | base64)" http://couchbase:8091/pools/default/buckets/oauth2test 2>/dev/null | grep -q "\"status\":\"healthy\""; do sleep 2; done'
+          echo "Couchbase ready"
+      - name: Run PHPUnit
+        run: composer test
+
+  test-php85:
+    runs-on: ubuntu-latest
     services:
       redis:
         image: redis
@@ -34,10 +103,7 @@ jobs:
         ports:
           - 5432:5432
         options: --health-cmd="pg_isready -h localhost" --health-interval=10s --health-timeout=5s --health-retries=5
-    strategy:
-      matrix:
-        php: [ 8.1, 8.2, 8.3, 8.4, 8.5 ]
-    name: "PHP ${{ matrix.php }} Unit Test"
+    name: "PHP 8.5 Unit Test"
     env:
       DYNAMODB_ENDPOINT: http://localhost:8000
     steps:
@@ -49,31 +115,28 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: ${{ matrix.php }}
+          php-version: '8.5'
           extensions: mongodb, mbstring, intl, redis, pdo_mysql, pdo_pgsql
       - name: Install composer dependencies
-        run: composer install
+        run: composer install --no-interaction
       - name: Wait for slow containers
         run: |
           echo "Waiting for DynamoDB..."
           timeout 30 bash -c 'until docker exec dynamodb bash -c "echo > /dev/tcp/localhost/8000" 2>/dev/null; do sleep 1; done'
           echo "DynamoDB ready"
-
           echo "Waiting for Cassandra..."
           timeout 120 bash -c 'until docker exec cassandra cqlsh -e "describe cluster" 2>/dev/null; do sleep 5; done'
           echo "Cassandra ready"
       - name: Run PHPUnit
         run: composer test
+
   phpstan:
-    name: "PHPStan"
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/${{ github.repository_owner }}/oauth2-php-ci:8.3
     steps:
       - uses: actions/checkout@v5
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: 8.1
       - name: Install composer dependencies
-        run: composer install
+        run: composer install --no-interaction
       - name: Run PHPStan
         run: composer analyze
