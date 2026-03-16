@@ -13,6 +13,8 @@ RUN apk add --no-cache --virtual .build-deps \
         unzip \
         libpq \
         libstdc++ \
+        openssl \
+        zlib \
     && docker-php-ext-install -j$(nproc) \
         pdo_mysql \
         pdo_pgsql \
