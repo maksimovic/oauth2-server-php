@@ -21,7 +21,8 @@ RUN apk add --no-cache --virtual .build-deps \
     && pecl install mongodb redis couchbase \
     && docker-php-ext-enable mongodb redis couchbase \
     && apk del .build-deps \
-    && rm -rf /tmp/* /var/cache/apk/*
+    && rm -rf /tmp/* /var/cache/apk/* \
+    && php -m | grep couchbase
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
