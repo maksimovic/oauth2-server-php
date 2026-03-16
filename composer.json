@@ -26,6 +26,11 @@
         "mroosz/php-cassandra": "^1.2",
         "phpstan/phpstan": "^2.1"
     },
+    "scripts": {
+        "test": "phpunit",
+        "test:coverage": "phpunit --coverage-text",
+        "analyze": "phpstan analyse --memory-limit=512M"
+    },
     "suggest": {
         "predis/predis": "Required to use Redis storage",
         "mroosz/php-cassandra": "^1.2 is required to use Cassandra storage",

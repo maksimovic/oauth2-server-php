@@ -6,6 +6,9 @@
          stopOnFailure="false"
          bootstrap="test/bootstrap.php"
          cacheDirectory=".phpunit.cache"
+         displayDetailsOnTestsThatTriggerDeprecations="true"
+         displayDetailsOnTestsThatTriggerWarnings="true"
+         displayDetailsOnSkippedTests="true"
 >
   <testsuites>
     <testsuite name="Oauth2 Test Suite">
