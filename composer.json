@@ -23,6 +23,7 @@
         "aws/aws-sdk-php": "^3.0",
         "firebase/php-jwt": "^7.0",
         "predis/predis": "^2.0",
+        "mongodb/mongodb": "^1.1",
         "mroosz/php-cassandra": "^1.2",
         "phpstan/phpstan": "^2.1"
     },

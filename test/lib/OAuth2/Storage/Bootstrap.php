@@ -115,9 +115,9 @@ class Bootstrap
         if (!$this->mysql) {
             $pdo = null;
             try {
-                $pdo = new \PDO('mysql:host=localhost;', 'root', 'root');
+                $pdo = new \PDO('mysql:host=127.0.0.1;', 'root', 'root');
             } catch (\PDOException $e) {
-                $this->mysql = new NullStorage('MySQL', 'Unable to connect to MySQL on root@localhost');
+                $this->mysql = new NullStorage('MySQL', 'Unable to connect to MySQL on root@127.0.0.1');
             }
 
             if ($pdo) {
@@ -135,7 +135,7 @@ class Bootstrap
     public function getMongoDb()
     {
         if (!$this->mongoDb) {
-            if (class_exists('MongoDB\Client')) {
+            if (extension_loaded('mongodb') && class_exists('MongoDB\Client')) {
                 $mongoDb = new \MongoDB\Client('mongodb://localhost:27017');
                 if ($this->testMongoDBConnection($mongoDb)) {
                     $db = $mongoDb->oauth2_server_php;
