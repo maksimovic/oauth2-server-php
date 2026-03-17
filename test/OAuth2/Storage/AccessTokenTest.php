@@ -60,8 +60,14 @@ class AccessTokenTest extends BaseTest
     #[DataProvider('provideStorage')]
     public function testUnsetAccessToken(AccessTokenInterface $storage)
     {
-        if ($storage instanceof NullStorage || !method_exists($storage, 'unsetAccessToken')) {
+        if ($storage instanceof NullStorage) {
             $this->markTestSkipped('Skipped Storage: ' . $storage->getMessage());
+
+            return;
+        }
+
+        if (!method_exists($storage, 'unsetAccessToken')) {
+            $this->markTestSkipped('Skipped Storage: unsetAccessToken not implemented');
 
             return;
         }
@@ -87,8 +93,14 @@ class AccessTokenTest extends BaseTest
     #[DataProvider('provideStorage')]
     public function testUnsetAccessTokenReturnsFalse(AccessTokenInterface $storage)
     {
-        if ($storage instanceof NullStorage || !method_exists($storage, 'unsetAccessToken')) {
+        if ($storage instanceof NullStorage) {
             $this->markTestSkipped('Skipped Storage: ' . $storage->getMessage());
+
+            return;
+        }
+
+        if (!method_exists($storage, 'unsetAccessToken')) {
+            $this->markTestSkipped('Skipped Storage: unsetAccessToken not implemented');
 
             return;
         }
