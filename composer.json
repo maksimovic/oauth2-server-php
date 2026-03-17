@@ -38,6 +38,6 @@
         "aws/aws-sdk-php": "^3.0 is required to use DynamoDB storage",
         "firebase/php-jwt": "^7.0 is required to use JWT features",
         "mongodb/mongodb": "^1.20 || ^2.0 is required to use MongoDB storage",
-        "ext-couchbase": "^4.0 is required to use Couchbase storage"
+        "couchbase/couchbase": "^4.4 is required to use Couchbase storage (requires ext-couchbase)"
     }
 }
