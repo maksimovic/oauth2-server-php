@@ -52,6 +52,10 @@ jobs:
       CB_BUCKET: oauth2test
     steps:
       - uses: actions/checkout@v5
+      - name: Verify PHP extensions
+        run: |
+          php -m
+          php -r "var_dump(extension_loaded('couchbase'), class_exists('Couchbase\Cluster'));"
       - name: Install composer dependencies
         run: composer install --no-interaction
       - name: Setup Couchbase

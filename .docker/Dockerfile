@@ -22,7 +22,9 @@ RUN apk add --no-cache --virtual .build-deps \
     && docker-php-ext-enable mongodb redis couchbase \
     && apk del .build-deps \
     && rm -rf /tmp/* /var/cache/apk/* \
-    && php -m | grep couchbase
+    && php -m | grep couchbase \
+    && php -r "new \Couchbase\ClusterOptions();" \
+    && ldd $(php -r "echo ini_get('extension_dir');")/couchbase.so
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
