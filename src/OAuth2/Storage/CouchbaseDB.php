@@ -175,9 +175,13 @@ class CouchbaseDB implements AuthorizationCodeInterface,
 
     public function unsetAccessToken($access_token)
     {
-        $this->deleteObjectByType('access_token_table', $access_token);
+        try {
+            $this->collection->remove($this->buildKey('access_token_table', $access_token));
 
-        return true;
+            return true;
+        } catch (DocumentNotFoundException) {
+            return false;
+        }
     }
 
     /* AuthorizationCodeInterface */
