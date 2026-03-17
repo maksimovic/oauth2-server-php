@@ -8,7 +8,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/${{ github.repository_owner }}/oauth2-php-ci:${{ matrix.php }}
+      image: ghcr.io/maksimovic/oauth2-php-ci:${{ matrix.php }}
     services:
       redis:
         image: redis
@@ -79,7 +79,7 @@ jobs:
   phpstan:
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/${{ github.repository_owner }}/oauth2-php-ci:8.3
+      image: ghcr.io/maksimovic/oauth2-php-ci:8.3
     steps:
       - uses: actions/checkout@v5
       - name: Install composer dependencies
