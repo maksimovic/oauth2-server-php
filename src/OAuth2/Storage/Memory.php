@@ -112,7 +112,7 @@ class Memory implements AuthorizationCodeInterface,
 
     public function getUserDetails($username)
     {
-        if (!isset($this->userCredentials[$username])) {
+        if (is_null($username) || !isset($this->userCredentials[$username])) {
             return false;
         }
 
@@ -339,7 +339,7 @@ class Memory implements AuthorizationCodeInterface,
     /*PublicKeyInterface */
     public function getPublicKey($client_id = null)
     {
-        if (isset($this->keys[$client_id])) {
+        if (!is_null($client_id) && isset($this->keys[$client_id])) {
             return $this->keys[$client_id]['public_key'];
         }
 
@@ -353,7 +353,7 @@ class Memory implements AuthorizationCodeInterface,
 
     public function getPrivateKey($client_id = null)
     {
-        if (isset($this->keys[$client_id])) {
+        if (!is_null($client_id) && isset($this->keys[$client_id])) {
             return $this->keys[$client_id]['private_key'];
         }
 
@@ -367,7 +367,7 @@ class Memory implements AuthorizationCodeInterface,
 
     public function getEncryptionAlgorithm($client_id = null)
     {
-        if (isset($this->keys[$client_id]['encryption_algorithm'])) {
+        if (!is_null($client_id) && isset($this->keys[$client_id]['encryption_algorithm'])) {
             return $this->keys[$client_id]['encryption_algorithm'];
         }
 

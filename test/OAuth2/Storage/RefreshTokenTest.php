@@ -2,9 +2,11 @@
 
 namespace OAuth2\Storage;
 
+use PHPUnit\Framework\Attributes\DataProvider;
+
 class RefreshTokenTest extends BaseTest
 {
-    /** @dataProvider provideStorage */
+    #[DataProvider('provideStorage')]
     public function testSetRefreshToken(RefreshTokenInterface $storage)
     {
         if ($storage instanceof NullStorage) {

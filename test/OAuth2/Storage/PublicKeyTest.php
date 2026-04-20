@@ -2,9 +2,11 @@
 
 namespace OAuth2\Storage;
 
+use PHPUnit\Framework\Attributes\DataProvider;
+
 class PublicKeyTest extends BaseTest
 {
-    /** @dataProvider provideStorage */
+    #[DataProvider('provideStorage')]
     public function testSetAccessToken($storage)
     {
         if ($storage instanceof NullStorage) {
@@ -14,7 +16,8 @@ class PublicKeyTest extends BaseTest
         }
 
         if (!$storage instanceof PublicKeyInterface) {
-            // incompatible storage
+            $this->markTestSkipped('Incompatible storage: PublicKeyInterface required');
+
             return;
         }
 

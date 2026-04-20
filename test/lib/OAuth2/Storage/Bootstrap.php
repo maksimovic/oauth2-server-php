@@ -4,13 +4,10 @@ namespace OAuth2\Storage;
 
 class Bootstrap
 {
-    const DYNAMODB_PHP_VERSION = 'none';
-
     protected static $instance;
     private $mysql;
     private $sqlite;
     private $postgres;
-    private $mongo;
     private $mongoDb;
     private $redis;
     private $cassandra;
@@ -68,7 +65,8 @@ class Bootstrap
     public function getPostgresDriver()
     {
         try {
-            $pdo = new \PDO('pgsql:host=localhost;dbname=oauth2_server_php', 'postgres', 'postgres');
+            $pgHost = $this->getEnvVar('POSTGRES_HOST', 'localhost');
+            $pdo = new \PDO("pgsql:host={$pgHost};dbname=oauth2_server_php", 'postgres', 'postgres');
 
             return $pdo;
         } catch (\PDOException $e) {
@@ -85,7 +83,8 @@ class Bootstrap
     {
         if (!$this->redis) {
             if (class_exists('Predis\Client')) {
-                $redis = new \Predis\Client();
+                $redisHost = $this->getEnvVar('REDIS_HOST', '127.0.0.1');
+                $redis = new \Predis\Client(['host' => $redisHost]);
                 if ($this->testRedisConnection($redis)) {
                     $redis->flushdb();
                     $this->redis = new Redis($redis);
@@ -118,9 +117,10 @@ class Bootstrap
         if (!$this->mysql) {
             $pdo = null;
             try {
-                $pdo = new \PDO('mysql:host=localhost;', 'root', 'root');
+                $mysqlHost = $this->getEnvVar('MYSQL_HOST', '127.0.0.1');
+                $pdo = new \PDO("mysql:host={$mysqlHost};", 'root', 'root');
             } catch (\PDOException $e) {
-                $this->mysql = new NullStorage('MySQL', 'Unable to connect to MySQL on root@localhost');
+                $this->mysql = new NullStorage('MySQL', "Unable to connect to MySQL on root@{$mysqlHost}");
             }
 
             if ($pdo) {
@@ -135,33 +135,12 @@ class Bootstrap
         return $this->mysql;
     }
 
-    public function getMongo()
-    {
-        if (!$this->mongo) {
-            if (class_exists('MongoClient')) {
-                $mongo = new \MongoClient('mongodb://localhost:27017', array('connect' => false));
-                if ($this->testMongoConnection($mongo)) {
-                    $db = $mongo->oauth2_server_php_legacy;
-                    $this->removeMongo($db);
-                    $this->createMongo($db);
-
-                    $this->mongo = new Mongo($db);
-                } else {
-                    $this->mongo = new NullStorage('Mongo', 'Unable to connect to mongo server on "localhost:27017"');
-                }
-            } else {
-                $this->mongo = new NullStorage('Mongo', 'Missing mongo php extension. Please install mongo.so');
-            }
-        }
-
-        return $this->mongo;
-    }
-
     public function getMongoDb()
     {
         if (!$this->mongoDb) {
-            if (class_exists('MongoDB\Client')) {
-                $mongoDb = new \MongoDB\Client('mongodb://localhost:27017');
+            if (extension_loaded('mongodb') && class_exists('MongoDB\Client')) {
+                $mongoHost = $this->getEnvVar('MONGODB_HOST', 'localhost');
+                $mongoDb = new \MongoDB\Client("mongodb://{$mongoHost}:27017");
                 if ($this->testMongoDBConnection($mongoDb)) {
                     $db = $mongoDb->oauth2_server_php;
                     $this->removeMongoDb($db);
@@ -179,17 +158,6 @@ class Bootstrap
         return $this->mongoDb;
     }
 
-    private function testMongoConnection(\MongoClient $mongo)
-    {
-        try {
-            $mongo->connect();
-        } catch (\MongoConnectionException $e) {
-            return false;
-        }
-
-        return true;
-    }
-
     private function testMongoDBConnection(\MongoDB\Client $mongo)
     {
         return true;
@@ -200,26 +168,28 @@ class Bootstrap
         if (!$this->couchbase) {
             if ($this->getEnvVar('SKIP_COUCHBASE_TESTS')) {
                 $this->couchbase = new NullStorage('Couchbase', 'Skipping Couchbase tests');
-            } elseif (!class_exists('Couchbase')) {
-                $this->couchbase = new NullStorage('Couchbase', 'Missing Couchbase php extension. Please install couchbase.so');
+            } elseif (!extension_loaded('couchbase') || !class_exists(\Couchbase\ClusterOptions::class)) {
+                $this->couchbase = new NullStorage('Couchbase', 'Missing Couchbase SDK. Install ext-couchbase and couchbase/couchbase ^4.4');
             } else {
-                // round-about way to make sure couchbase is working
-                // this is required because it throws a "floating point exception" otherwise
-                $code = "new \Couchbase(array('localhost:8091'), '', '', 'auth', false);";
-                $exec = sprintf('php -r "%s"', $code);
-                $ret = exec($exec, $test, $var);
-                if ($ret != 0) {
-                    $couchbase = new \Couchbase(array('localhost:8091'), '', '', 'auth', false);
-                    if ($this->testCouchbaseConnection($couchbase)) {
-                        $this->clearCouchbase($couchbase);
-                        $this->createCouchbaseDB($couchbase);
+                try {
+                    $options = new \Couchbase\ClusterOptions();
+                    $options->credentials(
+                        $this->getEnvVar('CB_USERNAME', 'Administrator'),
+                        $this->getEnvVar('CB_PASSWORD', 'password')
+                    );
+                    $cluster = new \Couchbase\Cluster(
+                        $this->getEnvVar('CB_CONNECTION_STRING', 'couchbase://localhost'),
+                        $options
+                    );
+                    $bucket = $cluster->bucket($this->getEnvVar('CB_BUCKET', 'default'));
+                    $collection = $bucket->defaultCollection();
 
-                        $this->couchbase = new CouchbaseDB($couchbase);
-                    } else {
-                        $this->couchbase = new NullStorage('Couchbase', 'Unable to connect to Couchbase server on "localhost:8091"');
-                    }
-                } else {
-                    $this->couchbase = new NullStorage('Couchbase', 'Error while trying to connect to Couchbase');
+                    $this->clearCouchbase($collection);
+                    $this->createCouchbaseDB($collection);
+
+                    $this->couchbase = new CouchbaseDB($collection);
+                } catch (\Exception $e) {
+                    $this->couchbase = new NullStorage('Couchbase', 'Unable to connect to Couchbase: ' . $e->getMessage());
                 }
             }
         }
@@ -227,76 +197,44 @@ class Bootstrap
         return $this->couchbase;
     }
 
-    private function testCouchbaseConnection(\Couchbase $couchbase)
-    {
-        try {
-            if (count($couchbase->getServers()) > 0) {
-                return true;
-            }
-        } catch (\CouchbaseException $e) {
-            return false;
-        }
-
-        return true;
-    }
-
     public function getCassandraStorage()
     {
         if (!$this->cassandra) {
-            if (class_exists('phpcassa\ColumnFamily')) {
-                $cassandra = new \phpcassa\Connection\ConnectionPool('oauth2_test', array('127.0.0.1:9160'));
-                if ($this->testCassandraConnection($cassandra)) {
-                    $this->removeCassandraDb();
-                    $this->cassandra = new Cassandra($cassandra);
-                    $this->createCassandraDb($this->cassandra);
-                } else {
-                    $this->cassandra = new NullStorage('Cassandra', 'Unable to connect to cassandra server on "127.0.0.1:9160"');
-                }
-            } else {
-                $this->cassandra = new NullStorage('Cassandra', 'Missing cassandra library. Please run "composer.phar require thobbs/phpcassa:dev-master"');
+            if (!class_exists('Cassandra\Connection')) {
+                $this->cassandra = new NullStorage('Cassandra', 'Missing cassandra library. Please run "composer require mroosz/php-cassandra"');
+
+                return $this->cassandra;
+            }
+
+            try {
+                $cassandraHost = $this->getEnvVar('CASSANDRA_HOST', '127.0.0.1');
+                $conn = new \Cassandra\Connection([
+                    new \Cassandra\Connection\StreamNodeConfig(
+                        host: $cassandraHost,
+                        port: 9042,
+                    ),
+                ]);
+                $conn->connect();
+
+                // recreate keyspace
+                $conn->query("DROP KEYSPACE IF EXISTS oauth2_test");
+                $conn->query("CREATE KEYSPACE oauth2_test WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1}");
+                $conn->query("CREATE TABLE oauth2_test.oauth_data (key text PRIMARY KEY, value text)");
+
+                $conn->setKeyspace('oauth2_test');
+
+                $this->cassandra = new Cassandra($conn);
+                $this->createCassandraDb($this->cassandra, $conn);
+            } catch (\Exception $e) {
+                $this->cassandra = new NullStorage('Cassandra', $e->getMessage());
             }
         }
 
         return $this->cassandra;
     }
 
-    private function testCassandraConnection(\phpcassa\Connection\ConnectionPool $cassandra)
+    private function createCassandraDb(Cassandra $storage, \Cassandra\Connection $conn)
     {
-        try {
-            new \phpcassa\SystemManager('localhost:9160');
-        } catch (\Exception $e) {
-            return false;
-        }
-
-        return true;
-    }
-
-    private function removeCassandraDb()
-    {
-        $sys = new \phpcassa\SystemManager('localhost:9160');
-
-        try {
-            $sys->drop_keyspace('oauth2_test');
-        } catch (\cassandra\InvalidRequestException $e) {
-
-        }
-    }
-
-    private function createCassandraDb(Cassandra $storage)
-    {
-        // create the cassandra keyspace and column family
-        $sys = new \phpcassa\SystemManager('localhost:9160');
-
-        $sys->create_keyspace('oauth2_test', array(
-            "strategy_class" => \phpcassa\Schema\StrategyClass::SIMPLE_STRATEGY,
-            "strategy_options" => array('replication_factor' => '1')
-        ));
-
-        $sys->create_column_family('oauth2_test', 'auth');
-        $cassandra = new \phpcassa\Connection\ConnectionPool('oauth2_test', array('127.0.0.1:9160'));
-        $cf = new \phpcassa\ColumnFamily($cassandra, 'auth');
-
-        // populate the data
         $storage->setClientDetails("oauth_test_client", "testpass", "http://example.com", 'implicit password');
         $storage->setAccessToken("testtoken", "Some Client", '', time() + 1000);
         $storage->setAuthorizationCode("testcode", "Some Client", '', '', time() + 1000);
@@ -318,12 +256,24 @@ class Bootstrap
 
         $storage->setClientKey('oauth_test_client', $this->getTestPublicKey(), 'test_subject');
 
-        $cf->insert("oauth_public_keys:ClientID_One", array('__data' => json_encode(array("public_key" => "client_1_public", "private_key" => "client_1_private", "encryption_algorithm" => "RS256"))));
-        $cf->insert("oauth_public_keys:ClientID_Two", array('__data' => json_encode(array("public_key" => "client_2_public", "private_key" => "client_2_private", "encryption_algorithm" => "RS256"))));
-        $cf->insert("oauth_public_keys:", array('__data' => json_encode(array("public_key" => $this->getTestPublicKey(), "private_key" =>  $this->getTestPrivateKey(), "encryption_algorithm" => "RS256"))));
-
-        $cf->insert("oauth_users:testuser", array('__data' =>json_encode(array("password" => "password", "email" => "testuser@test.com", "email_verified" => true))));
-
+        // insert public keys and user directly
+        $table = 'oauth_data';
+        $conn->query("INSERT INTO $table (key, value) VALUES (?, ?)", [
+            'oauth_public_keys:ClientID_One',
+            json_encode(array("public_key" => "client_1_public", "private_key" => "client_1_private", "encryption_algorithm" => "RS256")),
+        ]);
+        $conn->query("INSERT INTO $table (key, value) VALUES (?, ?)", [
+            'oauth_public_keys:ClientID_Two',
+            json_encode(array("public_key" => "client_2_public", "private_key" => "client_2_private", "encryption_algorithm" => "RS256")),
+        ]);
+        $conn->query("INSERT INTO $table (key, value) VALUES (?, ?)", [
+            'oauth_public_keys:',
+            json_encode(array("public_key" => $this->getTestPublicKey(), "private_key" => $this->getTestPrivateKey(), "encryption_algorithm" => "RS256")),
+        ]);
+        $conn->query("INSERT INTO $table (key, value) VALUES (?, ?)", [
+            'oauth_users:testuser',
+            json_encode(array("password" => "password", "email" => "testuser@test.com", "email_verified" => true)),
+        ]);
     }
 
     private function createSqliteDb(\PDO $pdo)
@@ -352,11 +302,17 @@ class Bootstrap
 
     private function createPostgresDb()
     {
-        if (!`PGPASSWORD=postgres psql postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname='postgres'" -h localhost -U postgres`) {
-            `PGPASSWORD=postgres createuser -s -r postgres -h localhost -U postgres`;
+        try {
+            $pgHost = $this->getEnvVar('POSTGRES_HOST', 'localhost');
+            $pdo = new \PDO("pgsql:host={$pgHost}", 'postgres', 'postgres');
+            $pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+            $exists = $pdo->query("SELECT 1 FROM pg_database WHERE datname = 'oauth2_server_php'")->fetchColumn();
+            if (!$exists) {
+                $pdo->exec('CREATE DATABASE oauth2_server_php');
+            }
+        } catch (\PDOException $e) {
+            // connection failed — will be caught later in getPostgresPdo
         }
-
-        `PGPASSWORD=postgres createdb -O postgres oauth2_server_php -h localhost -U postgres`;
     }
 
     private function populatePostgresDb(\PDO $pdo)
@@ -366,8 +322,15 @@ class Bootstrap
 
     private function removePostgresDb()
     {
-        if (trim(`PGPASSWORD=postgres psql -l -h localhost -U postgres | grep oauth2_server_php | wc -l`)) {
-            `PGPASSWORD=postgres dropdb oauth2_server_php -h localhost -U postgres`;
+        try {
+            $pgHost = $this->getEnvVar('POSTGRES_HOST', 'localhost');
+            $pdo = new \PDO("pgsql:host={$pgHost}", 'postgres', 'postgres');
+            $pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+            // terminate existing connections before dropping
+            $pdo->exec("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'oauth2_server_php' AND pid <> pg_backend_pid()");
+            $pdo->exec('DROP DATABASE IF EXISTS oauth2_server_php');
+        } catch (\PDOException $e) {
+            // connection failed — will be caught later
         }
     }
 
@@ -428,90 +391,54 @@ class Bootstrap
         return $this->configDir;
     }
 
-    private function createCouchbaseDB(\Couchbase $db)
+    private function createCouchbaseDB(\Couchbase\Collection $collection)
     {
-        $db->set('oauth_clients-oauth_test_client',json_encode(array(
-            'client_id' => "oauth_test_client",
-            'client_secret' => "testpass",
-            'redirect_uri' => "http://example.com",
-            'grant_types' => 'implicit password'
-        )));
-
-        $db->set('oauth_access_tokens-testtoken',json_encode(array(
-            'access_token' => "testtoken",
-            'client_id' => "Some Client"
-        )));
-
-        $db->set('oauth_authorization_codes-testcode',json_encode(array(
-            'access_token' => "testcode",
-            'client_id' => "Some Client"
-        )));
-
-        $db->set('oauth_users-testuser',json_encode(array(
-            'username' => 'testuser',
-            'password' => 'password',
-            'email' => 'testuser@test.com',
-            'email_verified' => true,
-        )));
-
-        $db->set('oauth_jwt-oauth_test_client',json_encode(array(
+        $collection->upsert('oauth_clients-oauth_test_client', [
             'client_id' => 'oauth_test_client',
-            'key'       => $this->getTestPublicKey(),
-            'subject'   => 'test_subject',
-        )));
-    }
+            'client_secret' => 'testpass',
+            'redirect_uri' => 'http://example.com',
+            'grant_types' => 'implicit password',
+        ]);
 
-    private function clearCouchbase(\Couchbase $cb)
-    {
-        $cb->delete('oauth_authorization_codes-new-openid-code');
-        $cb->delete('oauth_access_tokens-newtoken');
-        $cb->delete('oauth_authorization_codes-newcode');
-        $cb->delete('oauth_refresh_tokens-refreshtoken');
-    }
+        $collection->upsert('oauth_access_tokens-testtoken', [
+            'access_token' => 'testtoken',
+            'client_id' => 'Some Client',
+        ]);
 
-    private function createMongo(\MongoDB $db)
-    {
-        $db->oauth_clients->insert(array(
-            'client_id' => "oauth_test_client",
-            'client_secret' => "testpass",
-            'redirect_uri' => "http://example.com",
-            'grant_types' => 'implicit password'
-        ));
+        $collection->upsert('oauth_authorization_codes-testcode', [
+            'access_token' => 'testcode',
+            'client_id' => 'Some Client',
+        ]);
 
-        $db->oauth_access_tokens->insert(array(
-            'access_token' => "testtoken",
-            'client_id' => "Some Client"
-        ));
-
-        $db->oauth_authorization_codes->insert(array(
-            'authorization_code' => "testcode",
-            'client_id' => "Some Client"
-        ));
-
-        $db->oauth_users->insert(array(
+        $collection->upsert('oauth_users-testuser', [
             'username' => 'testuser',
             'password' => 'password',
             'email' => 'testuser@test.com',
             'email_verified' => true,
-        ));
+        ]);
 
-        $db->oauth_keys->insert(array(
-            'client_id'   => null,
-            'public_key' => $this->getTestPublicKey(),
-            'private_key' => $this->getTestPrivateKey(),
-            'encryption_algorithm' => 'RS256'
-        ));
-
-        $db->oauth_jwt->insert(array(
+        $collection->upsert('oauth_jwt-oauth_test_client', [
             'client_id' => 'oauth_test_client',
             'key' => $this->getTestPublicKey(),
-            'subject'   => 'test_subject',
-        ));
+            'subject' => 'test_subject',
+        ]);
     }
 
-    public function removeMongo(\MongoDB $db)
+    private function clearCouchbase(\Couchbase\Collection $collection)
     {
-        $db->drop();
+        $keys = [
+            'oauth_authorization_codes-new-openid-code',
+            'oauth_access_tokens-newtoken',
+            'oauth_authorization_codes-newcode',
+            'oauth_refresh_tokens-refreshtoken',
+        ];
+        foreach ($keys as $key) {
+            try {
+                $collection->remove($key);
+            } catch (\Couchbase\Exception\DocumentNotFoundException) {
+                // ignore
+            }
+        }
     }
 
     private function createMongoDB(\MongoDB\Database $db)
@@ -597,223 +524,167 @@ class Bootstrap
     public function getDynamoDbStorage()
     {
         if (!$this->dynamodb) {
-            // only run once per travis build
-            if (true == $this->getEnvVar('TRAVIS')) {
-                if (self::DYNAMODB_PHP_VERSION != $this->getEnvVar('TRAVIS_PHP_VERSION')) {
-                    $this->dynamodb = new NullStorage('DynamoDb', 'Skipping for travis.ci - only run once per build');
-
-                    return;
-                }
-            }
-            if (class_exists('\Aws\DynamoDb\DynamoDbClient')) {
-                if ($client = $this->getDynamoDbClient()) {
-                    // travis runs a unique set of tables per build, to avoid conflict
-                    $prefix = '';
-                    if ($build_id = $this->getEnvVar('TRAVIS_JOB_NUMBER')) {
-                        $prefix = sprintf('build_%s_', $build_id);
-                    } else {
-                        if (!$this->deleteDynamoDb($client, $prefix, true)) {
-                            return $this->dynamodb = new NullStorage('DynamoDb', 'Timed out while waiting for DynamoDB deletion (30 seconds)');
-                        }
-                    }
-                    $this->createDynamoDb($client, $prefix);
-                    $this->populateDynamoDb($client, $prefix);
-                    $config = array(
-                        'client_table' => $prefix.'oauth_clients',
-                        'access_token_table' => $prefix.'oauth_access_tokens',
-                        'refresh_token_table' => $prefix.'oauth_refresh_tokens',
-                        'code_table' => $prefix.'oauth_authorization_codes',
-                        'user_table' => $prefix.'oauth_users',
-                        'jwt_table'  => $prefix.'oauth_jwt',
-                        'scope_table'  => $prefix.'oauth_scopes',
-                        'public_key_table'  => $prefix.'oauth_public_keys',
-                    );
-                    $this->dynamodb = new DynamoDB($client, $config);
-                } elseif (!$this->dynamodb) {
-                    $this->dynamodb = new NullStorage('DynamoDb', 'unable to connect to DynamoDB');
-                }
-            } else {
-                $this->dynamodb = new NullStorage('DynamoDb', 'Missing DynamoDB library. Please run "composer.phar require aws/aws-sdk-php:dev-master');
+            try {
+                $this->initDynamoDbStorage();
+            } catch (\Exception $e) {
+                $this->dynamodb = new NullStorage('DynamoDb', $e->getMessage());
             }
         }
 
         return $this->dynamodb;
     }
 
-    private function getDynamoDbClient()
+    private function initDynamoDbStorage()
     {
-        $config = array();
-        // check for environment variables
-        if (($key = $this->getEnvVar('AWS_ACCESS_KEY_ID')) && ($secret = $this->getEnvVar('AWS_SECRET_KEY'))) {
-            $config['key']    = $key;
-            $config['secret'] = $secret;
-        } else {
-            // fall back on ~/.aws/credentials file
-            // @see http://docs.aws.amazon.com/aws-sdk-php/guide/latest/credentials.html#credential-profiles
-            if (!file_exists($this->getEnvVar('HOME') . '/.aws/credentials')) {
-                $this->dynamodb = new NullStorage('DynamoDb', 'No aws credentials file found, and no AWS_ACCESS_KEY_ID or AWS_SECRET_KEY environment variable set');
+        if (!class_exists('\Aws\DynamoDb\DynamoDbClient')) {
+            $this->dynamodb = new NullStorage('DynamoDb', 'Missing DynamoDB library. Please run "composer require aws/aws-sdk-php:^3.0"');
 
-                return;
-            }
-
-            // set profile in AWS_PROFILE environment variable, defaults to "default"
-            $config['profile'] = $this->getEnvVar('AWS_PROFILE', 'default');
+            return;
         }
 
-        // set region in AWS_REGION environment variable, defaults to "us-east-1"
-        $config['region'] = $this->getEnvVar('AWS_REGION', \Aws\Common\Enum\Region::US_EAST_1);
+        $endpoint = $this->getEnvVar('DYNAMODB_ENDPOINT', 'http://localhost:8000');
 
-        return \Aws\DynamoDb\DynamoDbClient::factory($config);
+        try {
+            $client = new \Aws\DynamoDb\DynamoDbClient([
+                'region' => 'us-east-1',
+                'version' => 'latest',
+                'endpoint' => $endpoint,
+                'credentials' => [
+                    'key' => 'fake',
+                    'secret' => 'fake',
+                ],
+            ]);
+
+            // verify DynamoDB Local is reachable
+            $client->listTables();
+        } catch (\Exception $e) {
+            $this->dynamodb = new NullStorage('DynamoDb', 'Unable to connect to DynamoDB Local at ' . $endpoint . ': ' . $e->getMessage());
+
+            return;
+        }
+
+        $prefix = 'test_';
+        $this->deleteDynamoDb($client, $prefix);
+        $this->createDynamoDb($client, $prefix);
+        $this->populateDynamoDb($client, $prefix);
+
+        $config = [
+            'client_table' => $prefix.'oauth_clients',
+            'access_token_table' => $prefix.'oauth_access_tokens',
+            'refresh_token_table' => $prefix.'oauth_refresh_tokens',
+            'code_table' => $prefix.'oauth_authorization_codes',
+            'user_table' => $prefix.'oauth_users',
+            'jwt_table'  => $prefix.'oauth_jwt',
+            'scope_table'  => $prefix.'oauth_scopes',
+            'public_key_table'  => $prefix.'oauth_public_keys',
+        ];
+        $this->dynamodb = new DynamoDB($client, $config);
     }
 
-    private function deleteDynamoDb(\Aws\DynamoDb\DynamoDbClient $client, $prefix = null, $waitForDeletion = false)
+    private function deleteDynamoDb(\Aws\DynamoDb\DynamoDbClient $client, $prefix = null)
     {
         $tablesList = explode(' ', 'oauth_access_tokens oauth_authorization_codes oauth_clients oauth_jwt oauth_public_keys oauth_refresh_tokens oauth_scopes oauth_users');
-        $nbTables  = count($tablesList);
 
-        // Delete all table.
-        foreach ($tablesList as $key => $table) {
+        foreach ($tablesList as $table) {
             try {
-                $client->deleteTable(array('TableName' => $prefix.$table));
+                $client->deleteTable(['TableName' => $prefix.$table]);
+                $client->waitUntil('TableNotExists', ['TableName' => $prefix.$table]);
             } catch (\Aws\DynamoDb\Exception\DynamoDbException $e) {
-                // Table does not exist : nothing to do
+                // Table does not exist
             }
         }
-
-        // Wait for deleting
-        if ($waitForDeletion) {
-            $retries = 5;
-            $nbTableDeleted = 0;
-            while ($nbTableDeleted != $nbTables) {
-                $nbTableDeleted = 0;
-                foreach ($tablesList as $key => $table) {
-                    try {
-                        $result = $client->describeTable(array('TableName' => $prefix.$table));
-                    } catch (\Aws\DynamoDb\Exception\DynamoDbException $e) {
-                        // Table does not exist : nothing to do
-                        $nbTableDeleted++;
-                    }
-                }
-                if ($nbTableDeleted != $nbTables) {
-                    if ($retries < 0) {
-                        // we are tired of waiting
-                        return false;
-                    }
-                    sleep(5);
-                    echo "Sleeping 5 seconds for DynamoDB ($retries more retries)...\n";
-                    $retries--;
-                }
-            }
-        }
-
-        return true;
     }
 
     private function createDynamoDb(\Aws\DynamoDb\DynamoDbClient $client, $prefix = null)
     {
-        $tablesList = explode(' ', 'oauth_access_tokens oauth_authorization_codes oauth_clients oauth_jwt oauth_public_keys oauth_refresh_tokens oauth_scopes oauth_users');
-        $nbTables  = count($tablesList);
-        $client->createTable(array(
+        $client->createTable([
             'TableName' => $prefix.'oauth_access_tokens',
-            'AttributeDefinitions' => array(
-                array('AttributeName' => 'access_token','AttributeType' => 'S')
-            ),
-            'KeySchema' => array(array('AttributeName' => 'access_token','KeyType' => 'HASH')),
-            'ProvisionedThroughput' => array('ReadCapacityUnits'  => 1,'WriteCapacityUnits' => 1)
-        ));
+            'AttributeDefinitions' => [
+                ['AttributeName' => 'access_token', 'AttributeType' => 'S'],
+            ],
+            'KeySchema' => [['AttributeName' => 'access_token', 'KeyType' => 'HASH']],
+            'BillingMode' => 'PAY_PER_REQUEST',
+        ]);
 
-        $client->createTable(array(
+        $client->createTable([
             'TableName' => $prefix.'oauth_authorization_codes',
-            'AttributeDefinitions' => array(
-                array('AttributeName' => 'authorization_code','AttributeType' => 'S')
-            ),
-            'KeySchema' => array(array('AttributeName' => 'authorization_code','KeyType' => 'HASH')),
-            'ProvisionedThroughput' => array('ReadCapacityUnits'  => 1,'WriteCapacityUnits' => 1)
-        ));
+            'AttributeDefinitions' => [
+                ['AttributeName' => 'authorization_code', 'AttributeType' => 'S'],
+            ],
+            'KeySchema' => [['AttributeName' => 'authorization_code', 'KeyType' => 'HASH']],
+            'BillingMode' => 'PAY_PER_REQUEST',
+        ]);
 
-        $client->createTable(array(
+        $client->createTable([
             'TableName' => $prefix.'oauth_clients',
-            'AttributeDefinitions' => array(
-                array('AttributeName' => 'client_id','AttributeType' => 'S')
-            ),
-            'KeySchema' => array(array('AttributeName' => 'client_id','KeyType' => 'HASH')),
-            'ProvisionedThroughput' => array('ReadCapacityUnits'  => 1,'WriteCapacityUnits' => 1)
-        ));
+            'AttributeDefinitions' => [
+                ['AttributeName' => 'client_id', 'AttributeType' => 'S'],
+            ],
+            'KeySchema' => [['AttributeName' => 'client_id', 'KeyType' => 'HASH']],
+            'BillingMode' => 'PAY_PER_REQUEST',
+        ]);
 
-        $client->createTable(array(
+        $client->createTable([
             'TableName' => $prefix.'oauth_jwt',
-            'AttributeDefinitions' => array(
-                array('AttributeName' => 'client_id','AttributeType' => 'S'),
-                array('AttributeName' => 'subject','AttributeType' => 'S')
-            ),
-            'KeySchema' => array(
-                array('AttributeName' => 'client_id','KeyType' => 'HASH'),
-                array('AttributeName' => 'subject','KeyType' => 'RANGE')
-            ),
-            'ProvisionedThroughput' => array('ReadCapacityUnits'  => 1,'WriteCapacityUnits' => 1)
-        ));
+            'AttributeDefinitions' => [
+                ['AttributeName' => 'client_id', 'AttributeType' => 'S'],
+                ['AttributeName' => 'subject', 'AttributeType' => 'S'],
+            ],
+            'KeySchema' => [
+                ['AttributeName' => 'client_id', 'KeyType' => 'HASH'],
+                ['AttributeName' => 'subject', 'KeyType' => 'RANGE'],
+            ],
+            'BillingMode' => 'PAY_PER_REQUEST',
+        ]);
 
-        $client->createTable(array(
+        $client->createTable([
             'TableName' => $prefix.'oauth_public_keys',
-            'AttributeDefinitions' => array(
-                array('AttributeName' => 'client_id','AttributeType' => 'S')
-            ),
-            'KeySchema' => array(array('AttributeName' => 'client_id','KeyType' => 'HASH')),
-            'ProvisionedThroughput' => array('ReadCapacityUnits'  => 1,'WriteCapacityUnits' => 1)
-        ));
+            'AttributeDefinitions' => [
+                ['AttributeName' => 'client_id', 'AttributeType' => 'S'],
+            ],
+            'KeySchema' => [['AttributeName' => 'client_id', 'KeyType' => 'HASH']],
+            'BillingMode' => 'PAY_PER_REQUEST',
+        ]);
 
-        $client->createTable(array(
+        $client->createTable([
             'TableName' => $prefix.'oauth_refresh_tokens',
-            'AttributeDefinitions' => array(
-                array('AttributeName' => 'refresh_token','AttributeType' => 'S')
-            ),
-            'KeySchema' => array(array('AttributeName' => 'refresh_token','KeyType' => 'HASH')),
-            'ProvisionedThroughput' => array('ReadCapacityUnits'  => 1,'WriteCapacityUnits' => 1)
-        ));
+            'AttributeDefinitions' => [
+                ['AttributeName' => 'refresh_token', 'AttributeType' => 'S'],
+            ],
+            'KeySchema' => [['AttributeName' => 'refresh_token', 'KeyType' => 'HASH']],
+            'BillingMode' => 'PAY_PER_REQUEST',
+        ]);
 
-        $client->createTable(array(
+        $client->createTable([
             'TableName' => $prefix.'oauth_scopes',
-            'AttributeDefinitions' => array(
-                array('AttributeName' => 'scope','AttributeType' => 'S'),
-                array('AttributeName' => 'is_default','AttributeType' => 'S')
-            ),
-            'KeySchema' => array(array('AttributeName' => 'scope','KeyType' => 'HASH')),
-            'GlobalSecondaryIndexes' => array(
-                array(
+            'AttributeDefinitions' => [
+                ['AttributeName' => 'scope', 'AttributeType' => 'S'],
+                ['AttributeName' => 'is_default', 'AttributeType' => 'S'],
+            ],
+            'KeySchema' => [['AttributeName' => 'scope', 'KeyType' => 'HASH']],
+            'GlobalSecondaryIndexes' => [
+                [
                     'IndexName' => 'is_default-index',
-                    'KeySchema' => array(array('AttributeName' => 'is_default', 'KeyType' => 'HASH')),
-                    'Projection' => array('ProjectionType' => 'ALL'),
-                    'ProvisionedThroughput' => array('ReadCapacityUnits'  => 1,'WriteCapacityUnits' => 1)
-                ),
-            ),
-            'ProvisionedThroughput' => array('ReadCapacityUnits'  => 1,'WriteCapacityUnits' => 1)
-        ));
+                    'KeySchema' => [['AttributeName' => 'is_default', 'KeyType' => 'HASH']],
+                    'Projection' => ['ProjectionType' => 'ALL'],
+                ],
+            ],
+            'BillingMode' => 'PAY_PER_REQUEST',
+        ]);
 
-        $client->createTable(array(
+        $client->createTable([
             'TableName' => $prefix.'oauth_users',
-            'AttributeDefinitions' => array(array('AttributeName' => 'username','AttributeType' => 'S')),
-            'KeySchema' => array(array('AttributeName' => 'username','KeyType' => 'HASH')),
-            'ProvisionedThroughput' => array('ReadCapacityUnits'  => 1,'WriteCapacityUnits' => 1)
-        ));
+            'AttributeDefinitions' => [
+                ['AttributeName' => 'username', 'AttributeType' => 'S'],
+            ],
+            'KeySchema' => [['AttributeName' => 'username', 'KeyType' => 'HASH']],
+            'BillingMode' => 'PAY_PER_REQUEST',
+        ]);
 
-        // Wait for creation
-        $nbTableCreated = 0;
-        while ($nbTableCreated != $nbTables) {
-            $nbTableCreated = 0;
-            foreach ($tablesList as $key => $table) {
-                try {
-                    $result = $client->describeTable(array('TableName' => $prefix.$table));
-                    if ($result['Table']['TableStatus'] == 'ACTIVE') {
-                        $nbTableCreated++;
-                    }
-                } catch (\Aws\DynamoDb\Exception\DynamoDbException $e) {
-                    // Table does not exist : nothing to do
-                    $nbTableCreated++;
-                }
-            }
-            if ($nbTableCreated != $nbTables) {
-                sleep(1);
-            }
+        // Wait for all tables to become active
+        $tablesList = explode(' ', 'oauth_access_tokens oauth_authorization_codes oauth_clients oauth_jwt oauth_public_keys oauth_refresh_tokens oauth_scopes oauth_users');
+        foreach ($tablesList as $table) {
+            $client->waitUntil('TableExists', ['TableName' => $prefix.$table]);
         }
     }
 

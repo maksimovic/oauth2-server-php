@@ -3,14 +3,22 @@
 namespace OAuth2\Storage;
 
 use OAuth2\Encryption\Jwt;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class JwtAccessTokenTest extends BaseTest
 {
-    /** @dataProvider provideStorage */
+    #[DataProvider('provideStorage')]
     public function testSetAccessToken($storage)
     {
-        if (!$storage instanceof PublicKey) {
-            // incompatible storage
+        if ($storage instanceof NullStorage) {
+            $this->markTestSkipped("Skipped Storage: {$storage}");
+
+            return;
+        }
+
+        if (!$storage instanceof PublicKeyInterface) {
+            $this->markTestSkipped('Incompatible storage: PublicKeyInterface required');
+
             return;
         }
 

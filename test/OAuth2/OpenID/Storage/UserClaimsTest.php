@@ -4,10 +4,11 @@ namespace OAuth2\OpenID\Storage;
 
 use OAuth2\Storage\BaseTest;
 use OAuth2\Storage\NullStorage;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class UserClaimsTest extends BaseTest
 {
-    /** @dataProvider provideStorage */
+    #[DataProvider('provideStorage')]
     public function testGetUserClaims($storage)
     {
         if ($storage instanceof NullStorage) {
@@ -17,7 +18,8 @@ class UserClaimsTest extends BaseTest
         }
 
         if (!$storage instanceof UserClaimsInterface) {
-            // incompatible storage
+            $this->markTestSkipped('Incompatible storage: UserClaimsInterface required');
+
             return;
         }
 

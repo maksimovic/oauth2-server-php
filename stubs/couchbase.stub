@@ -1,0 +1,47 @@
+<?php
+
+namespace Couchbase;
+
+class ClusterOptions
+{
+    public function credentials(string $username, string $password): self {}
+}
+
+class Cluster
+{
+    public function __construct(string $connectionString, ClusterOptions $options) {}
+    public function bucket(string $name): Bucket {}
+}
+
+class Bucket
+{
+    public function defaultCollection(): Collection {}
+    public function scope(string $name): Scope {}
+}
+
+class Scope
+{
+    public function collection(string $name): Collection {}
+}
+
+class Collection
+{
+    public function get(string $id, ?GetOptions $options = null): GetResult {}
+    public function upsert(string $id, mixed $value, ?UpsertOptions $options = null): MutationResult {}
+    public function remove(string $id, ?RemoveOptions $options = null): MutationResult {}
+}
+
+class GetResult
+{
+    public function content(): mixed {}
+}
+
+class MutationResult {}
+class GetOptions {}
+class UpsertOptions {}
+class RemoveOptions {}
+
+namespace Couchbase\Exception;
+
+class CouchbaseException extends \Exception {}
+class DocumentNotFoundException extends CouchbaseException {}

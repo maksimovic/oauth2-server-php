@@ -3,6 +3,7 @@
 namespace OAuth2\Encryption;
 
 use OAuth2\Storage\Bootstrap;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 class JwtTest extends TestCase
@@ -12,25 +13,38 @@ class JwtTest extends TestCase
     public function setUp(): void
     {
         $this->privateKey = <<<EOD
------BEGIN RSA PRIVATE KEY-----
-MIICXAIBAAKBgQC5/SxVlE8gnpFqCxgl2wjhzY7ucEi00s0kUg3xp7lVEvgLgYcA
-nHiWp+gtSjOFfH2zsvpiWm6Lz5f743j/FEzHIO1owR0p4d9pOaJK07d01+RzoQLO
-IQAgXrr4T1CCWUesncwwPBVCyy2Mw3Nmhmr9MrF8UlvdRKBxriRnlP3qJQIDAQAB
-AoGAVgJJVU4fhYMu1e5JfYAcTGfF+Gf+h3iQm4JCpoUcxMXf5VpB9ztk3K7LRN5y
-kwFuFALpnUAarRcUPs0D8FoP4qBluKksbAtgHkO7bMSH9emN+mH4le4qpFlR7+P1
-3fLE2Y19IBwPwEfClC+TpJvuog6xqUYGPlg6XLq/MxQUB4ECQQDgovP1v+ONSeGS
-R+NgJTR47noTkQT3M2izlce/OG7a+O0yw6BOZjNXqH2wx3DshqMcPUFrTjibIClP
-l/tEQ3ShAkEA0/TdBYDtXpNNjqg0R9GVH2pw7Kh68ne6mZTuj0kCgFYpUF6L6iMm
-zXamIJ51rTDsTyKTAZ1JuAhAsK/M2BbDBQJAKQ5fXEkIA+i+64dsDUR/hKLBeRYG
-PFAPENONQGvGBwt7/s02XV3cgGbxIgAxqWkqIp0neb9AJUoJgtyaNe3GQQJANoL4
-QQ0af0NVJAZgg8QEHTNL3aGrFSbzx8IE5Lb7PLRsJa5bP5lQxnDoYuU+EI/Phr62
-niisp/b/ZDGidkTMXQJBALeRsH1I+LmICAvWXpLKa9Gv0zGCwkuIJLiUbV9c6CVh
-suocCAteQwL5iW2gA4AnYr5OGeHFsEl7NCQcwfPZpJ0=
------END RSA PRIVATE KEY-----
+-----BEGIN PRIVATE KEY-----
+MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC+vIoGiA/K/k/y
+NhF1kpvzwSD6AG6XUUXm+R+3OxUIW7wG8zmnrjDk3hwArpG//rYxdEGL6wiF8hDr
+zYLSsr1fyRskuW7pCW6+h8HWvaoHkAh/yU7MmXMqUyAc3io/hVx0H3dB7JWbIvV0
+AM8bmEik+DI/eAxb5rtBWvUER/OpPbq81mbh7SfS/72IbVb5D3OMUiNDPX/4Ez4X
+zIgwrvjsWnP6wxguWUsAl0SWdOCFPwT7dqbptVUNwdEoGkZ4jPl/ydxVtbAdbBGo
+2MRVFRMHFeQtVDDiziC9T4eAkeSEiFvCH68QOlTWhjzlqM7o1G4epltQ81zisBxw
+FLIn7N4hAgMBAAECggEAC3/kBXlKFHfJO6XxXwiQEP3tnk0M3eAnSgHunNY50idv
+um6LJRYuOfo/L3ZW8L+rXedvtT8eJC9AQGtDTi87Fi2SjqAEdRXdwKyALhGA0RRo
+wsWRE+pThHN/DeaCHxLMDG9COi4IphIRQOV0lyoTBSk2pFd5TUgntYzFlXS+Fs+4
+Uexmg+anuBNHUUF8eyyL7hNsyPA0jQ/DTjqtGqLJog8daekJRXrPVmimDi8QeC7g
+axRLCCj4LDQPTfoW+s+mctwWYxJCIfjMS+4RgH7YBvVFGaB/MWCUcWOmAJ5gAYa8
+g5DBUuNgVp03A3bNhFefPpgsleXSDwWjYJsnC4sU8QKBgQD8vAw+ssF2zmba97mo
+r74yV1tUYKdaLLnV1C1jBdxX8uz1BLqUdII+oGHbmf85vJzbSxPqwq4dm6xG/fLh
+GSXCK2RnCbfro7102XqixZ/SaRQf7LopcpuFyW3fF55MBT8jg/qfBhENd7vQJAD5
+u5ssGvEAbxNsG1ET47yvHTUjGQKBgQDBM2y31fG+3jWiX2jhzMo59W5aoQUiCRLL
+kioACe7Pof6Hftb8wH3tBQjJ36tFa9k2FTePynGYhY33hvSm/qny5R4oTN9qoS0E
+EeYxl3gy6S0O+khPAa5p6K7i0ROPsTT4Z8l9XOacnirv2L+xVq4VieB1+dY5lIPK
+tPcHOWw8SQKBgQDG1I5xmSI4/KLQq8nFWxWv9yfj1vJyL/O3tOhMGiVCj9w52xGK
+j6qT6It0P9AaNTfWElfF/okKxBkh9NHqo2UgQBEKOwwV90iqsBoaCo309DQf9ZZz
+2zVdaJ3mwGcJ+aq1nzRBfX1W8haw5lJaJm0qorttkvVdvJPpqOYdgkX2qQKBgEQK
+wWpJPfeTuN3zrjN/9WTOLExc0zr2aRkq5AHZfbLAgazkngCsJm1YTY0TafVsEza5
+6DSK/tDRkHsxm25I2D/EM4fL8w9RrlH1n9WtW9bKSmUw/lBc7jk8ioM1USdVKKun
+mc297zYPel24P2LMfUj2owfJsona5UN50lpH/feJAoGBAPRhKcK5rInc+5JBJMYv
+5WEXWMJZ99MT4HBLnnyIKaL2LzIdf/IKUd43Sy4mCE036UPeYZQrH5jGZY2nZMlK
+/u5kI3t+pRXbiitgIDhEE/gtLxVyE37bwYBrnvr5JpTt6gwtM3S8IVcY8o5wdxB3
+frqJlY+bZ3RMCFNuElUk+G9Z
+-----END PRIVATE KEY-----
 EOD;
     }
 
-    /** @dataProvider provideClientCredentials */
+    #[DataProvider('provideClientCredentials')]
     public function testJwtUtil($client_id, $client_key)
     {
         $jwtUtil = new Jwt();
@@ -67,7 +81,7 @@ EOD;
         $this->assertFalse($jwtUtil->decode('go.o.b'));
     }
 
-    /** @dataProvider provideClientCredentials */
+    #[DataProvider('provideClientCredentials')]
     public function testInvalidJwtHeader($client_id, $client_key)
     {
         $jwtUtil = new Jwt();
@@ -90,7 +104,7 @@ EOD;
         $this->assertFalse($payload);
     }
 
-    public function provideClientCredentials()
+    public static function provideClientCredentials()
     {
         $storage = Bootstrap::getInstance()->getMemoryStorage();
         $client_id  = 'Test Client ID';

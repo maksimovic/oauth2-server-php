@@ -162,6 +162,7 @@ class ResourceControllerTest extends TestCase
         $storage = Bootstrap::getInstance()->getMemoryStorage();
         $tokenType = new \OAuth2\TokenType\Bearer();
         $controller = new ResourceController($tokenType, $storage);
+        $this->assertInstanceOf('OAuth2\Controller\ResourceController', $controller);
     }
 
     private function getTestServer($config = array())

@@ -453,7 +453,7 @@ class Server implements ResourceControllerInterface,
             $identifier = $grantType->getQueryStringIdentifier();
         }
 
-        $this->grantTypes[$identifier] = $grantType;
+        $this->grantTypes[(string) $identifier] = $grantType;
 
         // persist added grant type down to TokenController
         if (!is_null($this->tokenController)) {
@@ -473,7 +473,7 @@ class Server implements ResourceControllerInterface,
     public function addStorage($storage, $key = null)
     {
         // if explicitly set to a valid key, do not "magically" set below
-        if (isset($this->storageMap[$key])) {
+        if (!is_null($key) && isset($this->storageMap[$key])) {
             if (!is_null($storage) && !$storage instanceof $this->storageMap[$key]) {
                 throw new \InvalidArgumentException(sprintf('storage of type "%s" must implement interface "%s"', $key, $this->storageMap[$key]));
             }
@@ -516,7 +516,7 @@ class Server implements ResourceControllerInterface,
     {
         $key = $this->normalizeResponseType($key);
 
-        if (isset($this->responseTypeMap[$key])) {
+        if (!is_null($key) && isset($this->responseTypeMap[$key])) {
             if (!$responseType instanceof $this->responseTypeMap[$key]) {
                 throw new \InvalidArgumentException(sprintf('responseType of type "%s" must implement interface "%s"', $key, $this->responseTypeMap[$key]));
             }
