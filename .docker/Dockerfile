@@ -16,6 +16,10 @@ RUN apk add --no-cache --virtual .build-deps \
     && docker-php-ext-install -j$(nproc) \
         pdo_mysql \
         pdo_pgsql \
+    && if ! command -v pecl > /dev/null; then \
+        wget -q -O /tmp/install-pear-nozlib.phar https://pear.php.net/install-pear-nozlib.phar \
+        && php /tmp/install-pear-nozlib.phar; \
+    fi \
     && pecl install mongodb redis couchbase \
     && docker-php-ext-enable mongodb redis couchbase \
     && runDeps="$( \
