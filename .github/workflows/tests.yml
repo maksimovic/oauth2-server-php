@@ -37,7 +37,7 @@ jobs:
         image: couchbase/server:community-7.6.2
     strategy:
       matrix:
-        php: [ '8.1', '8.2', '8.3', '8.4', '8.5' ]
+        php: [ '8.1', '8.2', '8.3', '8.4', '8.5', '8.6' ]
     name: "PHP ${{ matrix.php }} Unit Test"
     env:
       MYSQL_HOST: mariadb
